@@ -25,7 +25,7 @@ def average_sensitivity(model):
     x = np.mean(agent_sensitivity)
     return x
 
-
+# Barabasi - Albert
 def netgen_ba(n, m):
     I = nx.barabasi_albert_graph(n=n, m=m)
     degs = [I.degree[node] for node in I.nodes()]
@@ -80,6 +80,7 @@ class NormAgent(Agent):
 
         if self.sensitivity > 0.1:
             self._nextSensitivity = self.sensitivity - np.mean(neigh_beh)*0.2
+            # self._nextSensitivity = self.sensitivity - np.sum(neigh_beh)*.02
 
     def advance(self):
         # self.contempt = self._nextContempt

@@ -43,6 +43,7 @@ And the last element - an agent must have used HS himself in the past, or have w
 neighbour using it, in order to be able to use it themself. 
 """
 
+
 # Define a function for calculating the percentage of hating agents in each step.
 
 
@@ -51,18 +52,29 @@ def percent_haters(model):
     x = sum(agent_behs) / len(agent_behs)
     return x
 
+
 def average_sensitivity(model):
     agent_sensitivity = [agent.sensitivity for agent in model.schedule.agents]
     x = np.mean(agent_sensitivity)
     return x
 
 
-def net_avg_deg(model):
-    x = model.avg_degree
+def network_type(model):
+    nettype = str()
+    if model.set == '1':
+        nettype = "BA"
+    if model.set == '2':
+        nettype = "ER"
+    x = nettype
     return x
 
 
-def net_culling(model):
+def net_avg_deg(model):
+    x = model.avg_deg
+    return x
+
+
+def net_max_deg(model):
     x = model.big_nodes
     return x
 
@@ -84,7 +96,6 @@ def final_step(model):
 
 # Network generators
 # Barabasi-Albert - number 1
-
 def netgen_ba(n, m):
     I = nx.barabasi_albert_graph(n=n, m=m)
     degs = [I.degree[node] for node in I.nodes()]
@@ -92,7 +103,7 @@ def netgen_ba(n, m):
     max_deg = np.max(degs)
     conn = nx.average_node_connectivity(I)
     clust = nx.average_clustering(I)
-    return I, avg_deg, max_deg, conn, clust
+    return I, (avg_deg, max_deg, conn, clust)
 
 
 # Erdos-Renyi - number 2
@@ -103,47 +114,48 @@ def netgen_er(n, p):
     max_deg = np.max(degs)
     conn = nx.average_node_connectivity(I)
     clust = nx.average_clustering(I)
-    return I, avg_deg, max_deg, conn, clust
+    return I, (avg_deg, max_deg, conn, clust)
+
 
 # Random Regular - number 3
-def netgen_rr(n, d):
-    I = nx.random_regular_graph(d=d, n=n)
-    degs = [I.degree[node] for node in I.nodes()]
-    avg_deg = np.mean(degs)
-    max_deg = np.max(degs)
-    conn = nx.average_node_connectivity(I)
-    clust = nx.average_clustering(I)
-    return I, avg_deg, max_deg, conn, clust
+# def netgen_rr(n, d):
+#     I = nx.random_regular_graph(d=d, n=n)
+#     degs = [I.degree[node] for node in I.nodes()]
+#     avg_deg = np.mean(degs)
+#     max_deg = np.max(degs)
+#     conn = nx.average_node_connectivity(I)
+#     clust = nx.average_clustering(I)
+#     return I, avg_deg, max_deg, conn, clust
 
-
-# Create an empty dictionary for networks, and for each number in (1,2,3), generate a list of networks, and supp. data.
+# Here we decide how many networks of each kind should be produced. For testing purposes set to something like 5.
+a = 60
+# Create an empty dictionary for networks, and for each number in (1,2), generate a list of networks, and supp. data.
 networks_for_use = {}
 networks_for_use['1'] = []
-for x in range(100):
+for x in range(a):
     net, data = netgen_ba(100, 4)
     networks_for_use['1'].append((net, data))
-    print(f'Finished generating network number {x+1} from set number 1.')
+    print(f'Finished generating network number {x + 1} from {a}, set number 1.')
 
 networks_for_use['2'] = []
-for x in range(100):
+for x in range(a):
     net, data = netgen_er(100, .078)
-    networks_for_use['2'].apppend((net, data))
-    print(f'Finished generating network number {x + 1} from set number 2.')
+    networks_for_use['2'].append((net, data))
+    print(f'Finished generating network number {x + 1} from {a}, set number 2.')
 
-networks_for_use['3'] = []
-for x in range(100):
-    net, data = netgen_rr(100, 4)
-    networks_for_use['3'].append((net, data))
-    print(f'Finished generating network number {x + 1} from set number 3.')
+# networks_for_use['3'] = []
+# for x in range(100):
+#     net, data = netgen_rr(100, 4)
+#     networks_for_use['3'].append((net, data))
+#     print(f'Finished generating network number {x + 1} from set number 3.')
 
 
 class NormAgent(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
         self.behavior = self.random.choices([NO_HATER, HATER], weights=[9, 1])[0]
-        self.contempt = self.random.betavariate(2, 5)
+        self.contempt = self.random.betavariate(2,5)
         self.sensitivity = self.random.betavariate(5,2)
-
 
     def step(self):
         neighbors_nodes = self.model.grid.get_neighbors(self.pos, include_center=False)
@@ -153,31 +165,32 @@ class NormAgent(Agent):
         self._nextBehavior = self.behavior
         self._nextSensitivity = self.sensitivity
 
-
-        if (self.contempt > self.random.uniform(0,1)) and (self.sensitivity < 0.3):
+        if (self.contempt > self.random.uniform(0, 1)) and (self.sensitivity < 0.3):
             self._nextBehavior = HATER
-        else: self._nextBehavior = NO_HATER
+        else:
+            self._nextBehavior = NO_HATER
 
         if self.sensitivity > 0.1:
-            self._nextSensitivity = self.sensitivity - np.mean(neigh_beh)*0.2
-
+            self._nextSensitivity = self.sensitivity - np.mean(neigh_beh) * 0.2
+            # self._nextSensitivity = self.sensitivity - np.sum(neigh_beh)*.02
 
     def advance(self):
         self.behavior = self._nextBehavior
         self.sensitivity = self._nextSensitivity
 
+
 class NormModel(Model):
-    def __init__(self, size, set_no, subset_no):
+    def __init__(self, size, type_no, subset_no):
         self.num_agents = size
         self.num_nodes = self.num_agents
-        self.set = str(set_no)
+        self.set = str(type_no)
         self.subset = subset_no
         self.I = networks_for_use[self.set][self.subset][0]
-        self.type = str(self.subset)
-        self.avg_deg = networks_for_use[self.set][self.subset][1]  # 1st parameter - average node degree
-        self.big_nodes = networks_for_use[self.set][self.subset][2]  # 2nd parameter - degree of highest-degree node
-        self.connectivity = networks_for_use[self.set][self.subset][3]  # 3rd parameter - mean network connectivity
-        self.clustering = networks_for_use[self.set][self.subset][4]  # Network's clustering coeff.
+        # self.type = str(self.set)
+        self.avg_deg = networks_for_use[self.set][self.subset][1][0]  # 1st parameter - average node degree
+        self.big_nodes = networks_for_use[self.set][self.subset][1][1]  # 2nd parameter - degree of highest-degree node
+        self.connectivity = networks_for_use[self.set][self.subset][1][2]  # 3rd parameter - mean network connectivity
+        self.clustering = networks_for_use[self.set][self.subset][1][3]  # Network's clustering coeff.
         self.grid = NetworkGrid(self.I)
         self.schedule = SimultaneousActivation(self)
         self.running = True
@@ -188,17 +201,19 @@ class NormModel(Model):
             self.schedule.add(a)
             self.grid.place_agent(a, node)
 
+        print(f"processing network number {self.subset+1}, type {self.set}")
 
         self.datacollector = DataCollector(
             model_reporters={"PerHate": percent_haters,
+                             "NetworkType": network_type,
                              "AveSensitivity": average_sensitivity,
                              "MeanDeg": net_avg_deg,
-                             "MaxDeg": net_culling,
+                             "MaxDeg": net_max_deg,
                              "NetConnect": net_conn,
                              "NetClust": net_clust,
                              "FinalStep": final_step,
                              },
-            agent_reporters={"Hate": "behavior"}
+            # agent_reporters={"Hate": "behavior"}
         )
 
     def step(self):
@@ -208,27 +223,28 @@ class NormModel(Model):
         if average_sensitivity(self) < 0.1 or self.step_counter > 250:
             self.running = False
 
+
 fixed_params = {
     "size": 100,
 }
 
 variable_params = {
-    "subset_no": np.arange(100),
-    "set_no": np.arange(1,4),
+    "subset_no": np.arange(a),
+    "type_no": (1, 2),
 }
-
 
 batch_run = BatchRunner(
     NormModel,
     variable_params,
     fixed_params,
-    iterations=2,
+    iterations=50,
     max_steps=255,
 
     model_reporters={"PerHate": percent_haters,
+                     "NetworkType": network_type,
                      "AveSensitivity": average_sensitivity,
                      "MeanDeg": net_avg_deg,
-                     "MaxDeg": net_culling,
+                     "MaxDeg": net_max_deg,
                      "NetConnect": net_conn,
                      "NetClust": net_clust,
                      "FinalStep": final_step,
@@ -241,7 +257,5 @@ batch_run.run_all()
 
 # agent_data = batch_run.get_agent_vars_dataframe()
 run_data = batch_run.get_model_vars_dataframe()
-run_data.to_csv('zbiorcze.csv')
+run_data.to_csv('counting_steps.csv')
 # agent_data.to_csv('agentami.csv')
-
-
