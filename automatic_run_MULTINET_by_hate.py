@@ -20,7 +20,7 @@ Data will be collected in order to later determine, which network traits make th
 quicker or slower.
 
 The networks generated are according to following rules: 
-Each Network is of same order N=1000
+Each Network is of same order N=100
 Each Network has similar (between 4 and 10) mean degree of nodes (((really? 4 and 10???)))
 Each Network has to be connected
 
